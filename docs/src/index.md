@@ -1,353 +1,306 @@
-### [Installation](https://github.com/alan-turing-institute/MLJ.jl/blob/master/README.md) | [Cheatsheet](mlj_cheatsheet.md) | [Workflows](common_mlj_workflows.md)
+```@raw html
+<span style="color:darkslateblue;font-size:2.25em;font-style:italic;">
+A Machine Learning Framework for Julia
+</span>
+<br>
+<br>
+<div style="font-size:1.25em;font-weight:bold;">
+  <a href="#Installation-1">Installation</a>    &nbsp;|&nbsp;
+  <a href="mlj_cheatsheet">Cheatsheet</a>       &nbsp;|&nbsp;
+  <a href="common_mlj_workflows">Workflows</a>  &nbsp;|&nbsp;
+  <a href="https://alan-turing-institute.github.io/DataScienceTutorials.jl/">Tutorials</a>       &nbsp;|&nbsp;
+  <a href="https://github.com/alan-turing-institute/MLJ.jl/">For Developers</a> &nbsp;|&nbsp;
+  <a href="https://mybinder.org/v2/gh/alan-turing-institute/MLJ.jl/master?filepath=binder%2FMLJ_demo.ipynb">Live Demo</a>
+</div>
+```
+
+# Introduction
+
+MLJ (Machine Learning in Julia) is a toolbox written in Julia
+providing a common interface and meta-algorithms for selecting,
+tuning, evaluating, composing and comparing [over 150 machine learning
+models](@ref model_list) written in Julia and other languages. In
+particular MLJ wraps a large number of
+[scikit-learn](https://scikit-learn.org/stable/) models.
+
+MLJ is released under the MIT licensed and sponsored by the [Alan
+Turing Institute](https://www.turing.ac.uk/).
 
 
-# Getting Started
+## Lightning tour
 
+*For a more elementary introduction to MLJ usage see [Getting Started](@ref).*
 
-```@setup doda
-import Random.seed!
+The first code snippet below creates a new Julia environment
+`MLJ_tour` and installs just those packages needed for the tour. See
+[Installation](@ref) for more on creating a Julia environment for use
+with MLJ.
+
+Julia installation instructions are
+[here](https://julialang.org/downloads/).
+
+```julia
+using Pkg
+Pkg.activate("MLJ_tour", shared=true)
+Pkg.add("MLJ")
+Pkg.add("MLJModels")
+Pkg.add("EvoTrees")
+```
+
+Load a selection of features and labels from the Ames House Price dataset:
+
+```julia
 using MLJ
-using InteractiveUtils
-MLJ.color_off()
-seed!(1234)
+X, y = @load_reduced_ames;
 ```
 
-## Choosing and evaluating a model
+Load and instantiate a gradient tree-boosting model:
 
-To load some demonstration data, add
-[RDatasets](https://github.com/JuliaStats/RDatasets.jl) to your load
-path and enter
-```@repl doda
-using RDatasets
-iris = dataset("datasets", "iris"); # a DataFrame
+```julia
+booster = @load EvoTreeRegressor
+booster.max_depth = 2
+booster.nrounds=50
 ```
-and then split the data into input and target parts:
 
-```@repl doda
+Combine the model with categorical feature encoding:
+
+```julia
+pipe = @pipeline ContinuousEncoder booster
+```
+
+Define a hyper-parameter range for optimization:
+
+```julia
+max_depth_range = range(pipe,
+                        :(evo_tree_regressor.max_depth),
+                        lower = 1,
+                        upper = 10)
+```
+
+Wrap the pipeline model in an optimization strategy:
+
+```julia
+self_tuning_pipe = TunedModel(model=pipe,
+                              tuning=RandomSearch(),
+                              ranges = max_depth_range,
+                              resampling=CV(nfolds=3, rng=456),
+                              measure=l1,
+                              acceleration=CPUThreads(),
+                              n=50)
+```
+
+Bind the "self-tuning" pipeline model (just a container for
+hyper-parameters) to data in a *machine* (which will additionally
+store *learned* parameters):
+
+```julia
+mach = machine(self_tuning_pipe, X, y)
+```
+
+Evaluate the "self-tuning" pipeline model's performance (implies nested resampling):
+
+```julia
+julia> evaluate!(mach,
+                measures=[l1, l2],
+                resampling=CV(nfolds=6, rng=123),
+                acceleration=CPUProcesses(), verbosity=2)
+┌───────────┬───────────────┬────────────────────────────────────────────────────────┐
+│ _.measure │ _.measurement │ _.per_fold                                             │
+├───────────┼───────────────┼────────────────────────────────────────────────────────┤
+│ l1        │ 16700.0       │ [16100.0, 16400.0, 14500.0, 17000.0, 16400.0, 19500.0] │
+│ l2        │ 6.43e8        │ [5.88e8, 6.81e8, 4.35e8, 6.35e8, 5.98e8, 9.18e8]       │
+└───────────┴───────────────┴────────────────────────────────────────────────────────┘
+_.per_observation = [[[29100.0, 9990.0, ..., 103.0], [12100.0, 1330.0, ..., 13200.0], [6490.0, 22000.0, ..., 13800.0], [9090.0, 9530.0, ..., 13900.0], [50800.0, 22700.0, ..., 1550.0], [32800.0, 4940.0, ..., 1110.0]], [[8.45e8, 9.98e7, ..., 10500.0], [1.46e8, 1.77e6, ..., 1.73e8], [4.22e7, 4.86e8, ..., 1.9e8], [8.26e7, 9.09e7, ..., 1.93e8], [2.58e9, 5.13e8, ..., 2.42e6], [1.07e9, 2.44e7, ..., 1.24e6]]]
+_.fitted_params_per_fold = [ … ]
+_.report_per_fold = [ … ]
+
+```
+
+Try out MLJ yourself in the following batteries-included Binder
+[notebook](https://mybinder.org/v2/gh/alan-turing-institute/MLJ.jl/master?filepath=binder%2FMLJ_demo.ipynb). No
+installation required.
+
+
+## Key goals
+
+* Offer a consistent way to use, compose and tune machine learning
+  models in Julia,
+
+* Promote the improvement of the Julia ML/Stats ecosystem by making it
+  easier to use models from a wide range of packages,
+
+* Unlock performance gains by exploiting Julia's support for
+  parallelism, automatic differentiation, GPU, optimisation etc.
+
+
+## Key features
+
+* Data agnostic, train models on any data supported by the
+  [Tables.jl](https://github.com/JuliaData/Tables.jl) interface,
+
+* Extensive, state-of-the art, support for model composition
+  (*pipelines* and *learning networks*) (see more
+  [below](#model-composability)),
+
+* Convenient syntax to tune and evaluate (composite) models.
+
+* Consistent interface to handle probabilistic predictions.
+
+* Extensible [tuning
+  interface](https://github.com/alan-turing-institute/MLJTuning.jl),
+  to support growing number of optimization strategies, and designed
+  to play well with model composition.
+
+
+## Model composability
+
+The generic model composition API's provided by other toolboxes we
+have surveyed share one or more of the following shortcomings, which
+do not exist in MLJ:
+
+- Composite models do not inherit all the behavior of ordinary
+  models.
+
+- Composition is limited to linear (non-branching) pipelines.
+
+- Supervised components in a linear pipeline can only occur at the
+  end of the pipeline.
+
+- Only static (unlearned) target transformations/inverse
+  transformations are supported.
+
+- Hyper-parameters in homogeneous model ensembles cannot be coupled.
+
+- Model stacking, with out-of-sample predictions for base learners,
+  cannot be implemented (using the generic API alone).
+
+- Hyper-parameters and/or learned parameters of component models are
+  not easily inspected or manipulated (by tuning algorithms, for
+  example)
+  
+- Composite models cannot implement multiple opertations, for example,
+  both a `predict` and `transform` method (as in clustering models) or
+  both a `transform` and `inverse_transform` method.
+  
+Some of these features are demonstrated in [this
+notebook](https://github.com/ablaom/MachineLearningInJulia2020/blob/master/wow.ipynb)
+
+For more information see the [MLJ design
+paper](https://github.com/alan-turing-institute/MLJ.jl/blob/master/paper/paper.md)
+
+
+## Reporting problems
+
+Users are encouraged to provide feedback on their experience using MLJ
+and to report issues. You can do so
+[here](https://github.com/alan-turing-institute/MLJ.jl/issues) or on
+the `#mlj` Julia slack channel.
+
+For known issues that are not strictly MLJ bugs, see
+[here](https://github.com/alan-turing-institute/MLJ.jl#known-issues)
+
+
+## Installation
+
+Initially it is recommended that MLJ and associated packages be
+installed in a new
+[environment](https://julialang.github.io/Pkg.jl/v1/environments/) to
+avoid package conflicts. You can do this with
+
+```julia
+julia> using Pkg; Pkg.activate("my_MLJ_env", shared=true)
+```
+
+Installing MLJ is also done with the package manager:
+
+```julia
+julia> Pkg.add("MLJ")
+```
+
+**Optional:** To test your installation, run
+
+```julia
+julia> Pkg.test("MLJ")
+```
+       
+It is important to note that MLJ is essentially a big wrapper
+providing a unified access to _model providing packages_ and so you
+will also need to make sure these packages are available in your
+environment.  For instance, if you want to use a **Decision Tree
+Classifier**, you need to have
+[DecisionTree.jl](https://github.com/bensadeghi/DecisionTree.jl)
+installed:
+
+```julia
+julia> Pkg.add("DecisionTree");
+julia> using MLJ;
+julia> @load DecisionTreeClassifier
+```
+
+For a list of models and their packages run
+
+```julia
 using MLJ
-y, X = unpack(iris, ==(:Species), colname -> true);
-first(X, 3) |> pretty
-```
-
-To list all models available in MLJ's [model
-registry](model_search.md):
-
-```@repl doda
 models()
 ```
 
-In MLJ a *model* is a struct storing the hyperparameters of the
-learning algorithm indicated by the struct name.  
-
-Assuming the DecisionTree.jl package is in your load path, we can use
-`@load` to load the code defining the `DecisionTreeClassifier` model
-type. This macro also returns an instance, with default
-hyperparameters.
-
-Drop the `verbosity=1` declaration for silent loading:
-
-```@repl doda
-tree_model = @load DecisionTreeClassifier verbosity=1
-```
-
-*Important:* DecisionTree.jl and most other packages implementing machine
-learning algorithms for use in MLJ are not MLJ dependencies. If such a
-package is not in your load path you will receive an error explaining
-how to add the package to your current environment.
-
-Once loaded, a model can be evaluated with the `evaluate` method:
-
-```@repl doda
-evaluate(tree_model, X, y,
-         resampling=CV(shuffle=true), measure=cross_entropy, verbosity=0)
-```
-
-Evaluating against multiple performance measures is also possible. See
-[Evaluating Model Performance](evaluating_model_performance.md) for details.
-
-
-## A preview of data type specification in MLJ
-
-The target `y` above is a categorical vector, which is appropriate
-because our model is a decision tree *classifier*:
-
-```@repl doda
-typeof(y)
-```
-
-However, MLJ models do not actually prescribe the machine types for
-the data they operate on. Rather, they specify a *scientific type*,
-which refers to the way data is to be *interpreted*, as opposed to how
-it is *encoded*:
-
-```julia
-julia> info("DecisionTreeClassifier").target_scitype
-AbstractArray{<:Finite, 1}
-```
-
-Here `Finite` is an example of a "scalar" scientific type with two
-subtypes:
-
-```@repl doda
-subtypes(Finite)
-```
-
-We use the `scitype` function to check how MLJ is going to interpret
-given data. Our choice of encoding for `y` works for
-`DecisionTreeClassfier`, because we have:
-
-```@repl doda
-scitype(y)
-```
-
-and `Multiclass{3} <: Finite`. If we would encode with integers
-instead, we obtain:
-
-```@repl doda
-yint = Int.(y.refs);
-scitype(yint)
-```
-
-and using `yint` in place of `y` in classification problems will fail.
-
-For more on scientific types, see [Data containers and scientific
-types](@ref) below.
-
-
-## Fit and predict
-
-To illustrate MLJ's fit and predict interface, let's perform our
-performance evaluations by hand, but using a simple holdout set,
-instead of cross-validation.
-
-Wrapping the model in data creates a *machine* which will store
-training outcomes:
-
-```@repl doda
-tree = machine(tree_model, X, y)
-```
-
-Training and testing on a hold-out set:
-
-```@repl doda
-train, test = partition(eachindex(y), 0.7, shuffle=true); # 70:30 split
-fit!(tree, rows=train);
-yhat = predict(tree, X[test,:]);
-yhat[3:5]
-cross_entropy(yhat, y[test]) |> mean
-```
-
-Notice that `yhat` is a vector of `Distribution` objects (because
-DecisionTreeClassifier makes probabilistic predictions). The methods
-of the [Distributions](https://github.com/JuliaStats/Distributions.jl)
-package can be applied to such distributions:
-
-```@repl doda
-broadcast(pdf, yhat[3:5], "virginica") # predicted probabilities of virginica
-mode.(yhat[3:5])
-```
-
-Or, one can explicitly get modes by using `predict_mode` instead of
-`predict`:
-
-```@repl doda
-predict_mode(tree, rows=test[3:5])
-```
-
-Unsupervised models have a `transform` method instead of `predict`,
-and may optionally implement an `inverse_transform` method:
-
-```@repl doda
-v = [1, 2, 3, 4]
-stand_model = UnivariateStandardizer()
-stand = machine(stand_model, v)
-fit!(stand)
-w = transform(stand, v)
-inverse_transform(stand, w)
-```
-
-[Machines](machines.md) have an internal state which allows them to
-avoid redundant calculations when retrained, in certain conditions -
-for example when increasing the number of trees in a random forest, or
-the number of epochs in a neural network. The machine building syntax
-also anticipates a more general syntax for composing multiple models,
-as explained in [Composing Models](composing_models.md).
-
-There is a version of `evaluate` for machines as well as models. This
-time we'll add a second performance measure. (An exclamation point is
-added to the method name because machines are generally mutated when
-trained):
-
-```@repl doda
-evaluate!(tree, resampling=Holdout(fraction_train=0.7, shuffle=true),
-                measures=[cross_entropy, BrierScore()],
-                verbosity=0)
-```
-Changing a hyperparameter and re-evaluating:
-
-```@repl doda
-tree_model.max_depth = 3
-evaluate!(tree, resampling=Holdout(fraction_train=0.7, shuffle=true),
-          measures=[cross_entropy, BrierScore()],
-          verbosity=0)
-```
-
-## Next steps
-
-To learn a little more about what MLJ can do, browse [Common MLJ
-Workflows](common_mlj_workflows.md) or MLJ's
-[tutorials](https://alan-turing-institute.github.io/MLJTutorials/),
-returning to the manual as needed. *Read at least the remainder of
-this page before considering serious use of MLJ.*
-
-
-## Prerequisites
-
-MLJ assumes some familiarity with
-[CategoricalArrays.jl](https://github.com/JuliaData/CategoricalArrays.jl),
-used here for representing arrays of categorical data. For
-probabilistic predictors, a basic acquaintance with
-[Distributions.jl](https://github.com/JuliaStats/Distributions.jl) is
-also assumed.
-
-
-## Data containers and scientific types
-
-The MLJ user should acquaint themselves with some
-basic assumptions about the form of data expected by MLJ, as outlined
-below.
-
-```
-machine(model::Supervised, X, y)
-machine(model::Unsupervised, X)
-```
-
-Each supervised model in MLJ declares the permitted *scientific type*
-of the inputs `X` and targets `y` that can be bound to it in the first
-constructor above, rather than specifying specific machine types (such
-as `Array{Float32, 2}`). Similar remarks apply to the input `X` of an
-unsupervised model.
-
-Scientific types are julia types defined in the package
-[ScientificTypes.jl](https://github.com/alan-turing-institute/ScientificTypes.jl);
-the package
-[MLJScientificTypes](https://github.com/alan-turing-institute/MLJScientificTypes.jl)
-implements the particular convention used in the MLJ universe for
-assigning a specific scientific type (interpretation) to each julia
-object (see the `scitype` examples below).
-
-The basic "scalar" scientific types are `Continuous`, `Multiclass{N}`,
-`OrderedFactor{N}` and `Count`. Be sure you read [Container element
-types](@ref) below to be guarantee your scalar data is interpreted
-correctly. Tools exist to coerce the data to have the appropriate
-scientfic type; see
-[MLJScientificTypes.jl](https://github.com/alan-turing-institute/MLJScientificTypes.jl)
-or run `?coerce` for details.
-
-Additionally, most data containers - such as tuples,
-vectors, matrices and tables - have a scientific type.
-
-
-![](img/scitypes.png)
-
-*Figure 1. Part of the scientific type hierarchy in* [ScientificTypes.jl](https://github.com/alan-turing-institute/ScientificTypes.jl).
-
-```@repl doda
-scitype(4.6)
-scitype(42)
-x1 = categorical(["yes", "no", "yes", "maybe"]);
-scitype(x1)
-X = (x1=x1, x2=rand(4), x3=rand(4))  # a "column table"
-scitype(X)
-```
-
-### Tabular data
-
-All data containers compatible with the
-[Tables.jl](https://github.com/JuliaData/Tables.jl) interface (which
-includes all source formats listed
-[here](https://github.com/queryverse/IterableTables.jl)) have the
-scientific type `Table{K}`, where `K` depends on the scientific types
-of the columns, which can be individually inspected using `schema`:
-
-```@repl doda
-schema(X)
-```
-
-### Inputs
-
-Since an MLJ model only specifies the scientific type of data, if that
-type is `Table` - which is the case for the majority of MLJ models -
-then any [Tables.jl](https://github.com/JuliaData/Tables.jl) format is
-permitted. However, the Tables.jl API excludes matrices. If `Xmatrix`
-is a matrix, convert it to a column table using `X =
-MLJ.table(Xmatrix)`.
-
-Specifically, the requirement for an arbitrary model's input is `scitype(X)
-<: input_scitype(model)`.
-
-### Targets
-
-The target `y` expected by MLJ models is generally an
-`AbstractVector`. A multivariate target `y` will generally be a table.
-
-Specifically, the type requirement for a model target is `scitype(y) <:
-target_scitype(model)`.
-
-### Querying a model for acceptable data types
-
-Given a model instance, one can inspect the admissible scientific
-types of its input and target, and without loading the code defining
-the model:
-
-```@setup doda
-tree = @load DecisionTreeClassifier
-```
-
-```@repl doda
-i = info("DecisionTreeClassifier")
-i.input_scitype
-i.target_scitype
-```
-
-### Container element types
-
-Models in MLJ will always apply the `MLJ` convention described in
-[MLJScientificTypes.jl](https://github.com/alan-turing-institute/MLJScientificTypes.jl)
-to decide how to interpret the elements of your container types. Here
-are the key features of that convention:
-
-- Any `AbstractFloat` is interpreted as `Continuous`.
-
-- Any `Integer` is interpreted as `Count`.
-
-- Any `CategoricalValue` or `CategoricalString`, `x`, is interpreted
-  as `Multiclass` or `OrderedFactor`, depending on the value of
-  `x.pool.ordered`.
-
-- `String`s and `Char`s are *not* interpreted as `Multiclass` or
-  `OrderedFactor (they have scitypes `Textual` and `Unknown`
-  respectively). 
-  
-- In particular, *integers* (including `Bool`s) *cannot be used to
-  represent categorical data.* Use the preceding `coerce` operations
-  to coerce to a `Finite` scitype. 
-
-Use `coerce(v, OrderedFactor)` or `coerce(v, Multiclass)` to coerce a
-vector `v` of integers, strings or characters to a vector with an
-appropriate `Finite` (categorical) scitype. For more on scitype
-coercion of arrays and tables, see `coerce`, `autotype` and `unpack`
-below.
-
-To designate an intrinsic "true" class for binary data (for purposes
-of applying MLJ measures, such as `truepositive`), data should be
-represented by an ordered `CategoricalValue` or
-`CategoricalString`. This data will have scitype `OrderedFactor{2}`
-and the "true" class is understood to be the *second* class in the
-ordering.
-
-```@docs
-coerce
-autotype
-unpack
+or refer to [List of Supported Models](@ref model_list)
+
+It is recommended that you start with models marked as coming from mature
+packages such as DecisionTree.jl, ScikitLearn.jl or XGBoost.jl.
+
+MLJ is supported by a number of satelite packages (MLJTuning,
+MLJModelInterface, etc) which the general user is *not* required to
+install directly. Developers can learn more about these
+[here](https://github.com/alan-turing-institute/MLJ.jl/blob/master/ORGANIZATION.md)
+
+
+## Learning Julia
+
+If you have experience in programming in another language but are new
+to Julia, then we highly recommend Aaron Christinson's tutorial
+[Dispatching Design
+Patterns](https://github.com/ninjaaron/dispatching-design-patterns)
+which is nicely compressed in his [half-hour
+video presentation](https://live.juliacon.org/talk/JYNERU).
+
+However, one doesn't need to be able to program in Julia to start
+using MLJ.
+
+## Learning to use MLJ
+
+The present document, although littered with examples, is primarily
+intended as a complete reference. For a short introduction to basic
+MLJ functionality, read the [Getting Started](@ref) section of this
+manual. For extensive tutorials, we recommend the [MLJ
+Tutorials](https://alan-turing-institute.github.io/DataScienceTutorials.jl/)
+website.  Each tutorial can be downloaded as a notebook or Julia
+script to facilitate experimentation. Finally, you may like to
+checkout the [JuliaCon2020
+Workshop](https://github.com/ablaom/MachineLearningInJulia2020) on MLJ
+(recorded
+[here](https://www.youtube.com/watch?time_continue=27&v=qSWbCn170HU&feature=emb_title)).
+
+You can try also MLJ out in the following
+[notebook](https://mybinder.org/v2/gh/alan-turing-institute/MLJ.jl/master?filepath=binder%2FMLJ_demo.ipynb)
+on Binder, without installing Julia or MLJ.
+
+Users are also welcome to join the `#mlj` Julia slack channel to ask
+questions and make suggestions.
+
+
+## Citing MLJ
+
+When presenting work that uses MLJ, please cite the [MLJ design
+paper](https://arxiv.org/abs/2007.12285). Here is the relevant bibtex entry:
+
+```bitex
+@misc{blaom2020mlj,
+    title={MLJ: A Julia package for composable machine learning},
+    author={Anthony D. Blaom and Franz Kiraly and Thibaut Lienart and Yiannis Simillides and Diego Arenas and Sebastian J. Vollmer},
+    year={2020},
+    eprint={2007.12285},
+    archivePrefix={arXiv},
+    primaryClass={cs.LG}
+}
 ```

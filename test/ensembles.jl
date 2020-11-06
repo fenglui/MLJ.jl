@@ -2,6 +2,7 @@ module TestEnsembles
 
 using Test
 using Random
+using StableRNGs
 using MLJ
 using MLJBase
 import MLJModels
@@ -30,7 +31,8 @@ n=length(ensemble)
 atomic_weights = fill(1/n, n) # ignored by predict below
 wens = MLJ.WrappedEnsemble(atom, ensemble)
 X = MLJ.table(rand(3,5))
-@test predict(wens, atomic_weights, X) == categorical(vcat(['j','j','j'],L))[1:3]
+@test predict(wens, atomic_weights, X) ==
+    categorical(vcat(['j','j','j'],L))[1:3]
 
 # target is :deterministic :continuous false:
 atom = MLJModels.DeterministicConstantRegressor()
@@ -43,8 +45,10 @@ wens = MLJ.WrappedEnsemble(atom, ensemble)
 atom = ConstantClassifier()
 L = categorical(['a', 'b', 'j'])
 d1 = UnivariateFinite(L, [0.1, 0.2, 0.7])
+fitresult1 = (L, pdf([d1, ], L))
 d2 = UnivariateFinite(L, [0.2, 0.3, 0.5])
-ensemble = [d2,  d1, d2, d2]
+fitresult2 = (L, pdf([d2, ], L))
+ensemble = [fitresult2, fitresult1, fitresult2, fitresult2]
 atomic_weights = [0.1, 0.5, 0.2, 0.2]
 wens = MLJ.WrappedEnsemble(atom, ensemble)
 X = MLJ.table(rand(2,5))
@@ -105,16 +109,18 @@ MLJBase.info_dict(ensemble_model)
 
 # target is :deterministic :continuous false:
 atom = MLJModels.DeterministicConstantRegressor()
-Random.seed!(1234)
-X = MLJ.table(randn(10,3))
-y = randn(10)
+rng = StableRNG(1234)
+X = MLJ.table(randn(rng, 10, 3))
+y = selectcols(X, 1)
+std(y)
 train, test = partition(1:length(y), 0.8);
-ensemble_model = MLJ.DeterministicEnsembleModel(atom=atom, rng=1)
+ensemble_model = MLJ.DeterministicEnsembleModel(atom=atom, rng=rng)
 ensemble_model.out_of_bag_measure = [MLJ.rms,MLJ.rmsp]
-ensemble_model.n = 2
+ensemble_model.n = 10
 fitresult, cache, report = MLJ.fit(ensemble_model, 1, X, y)
-# TODO: the following test fails in distributed version (because of multiple rng's ?)
-@test abs(report.oob_measurements[1] - 1.0834) < 0.001
+# TODO: the following test fails in distributed version (because of
+# multiple rng's ?)
+@test abs(report.oob_measurements[1] - std(y)) < 0.25
 ensemble_model = MLJ.DeterministicEnsembleModel(atom=atom,rng=Random.MersenneTwister(1))
 ensemble_model.out_of_bag_measure = MLJ.rms
 ensemble_model.n = 2
@@ -183,13 +189,14 @@ MLJBase.info_dict(ensemble_model)
 @test EnsembleModel(atom=MLJModels.DeterministicConstantRegressor()) isa Deterministic
 
 @testset "further test of sample weights" begin
+    rng = StableRNG(123)
     N = 20
-    X = (x = rand(3N), );
-    y = categorical(rand("abbbc", 3N));
+    X = (x = rand(rng, 3N), );
+    y = categorical(rand(rng, "abbbc", 3N));
     atom = @load KNNClassifier
     ensemble_model = MLJ.ProbabilisticEnsembleModel(atom=atom,
                                                     bagging_fraction=1,
-                                                    n = 5)
+                                                    n = 5, rng=rng)
     fitresult, cache, report = MLJ.fit(ensemble_model, 1, X, y)
     @test predict_mode(ensemble_model, fitresult, (x = [0, ],))[1] == 'b'
     w = map(y) do η

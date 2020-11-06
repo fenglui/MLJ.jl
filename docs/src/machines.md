@@ -1,17 +1,15 @@
 # Machines
 
 Under the hood, calling `fit!` on a machine calls either `MLJBase.fit`
-or `MLJBase.update`, depending on the machine's internal state, as
-recorded in additional fields `previous_model` and
-`previous_rows`. These lower-level `fit` and `update` methods dispatch
-on the model and a view of the data defined by the optional `rows`
-keyword argument of `fit!` (all rows by default). In this way, if a
-model `update` method is implemented, calls to `fit!` can avoid
+or `MLJBase.update`, depending on the machine's internal state (as
+recorded in private fields `old_model` and
+`old_rows`). These lower-level `fit` and `update` methods, which
+are not ordinarily called directly by the user, dispatch on the model
+and a view of the data defined by the optional `rows` keyword argument
+of `fit!` (all rows by default). In this way, if a model `update`
+method has been implemented for the model, calls to `fit!` can avoid
 redundant calculations for certain kinds of model mutations (eg,
 increasing the number of epochs in a neural network).
-
-The interested reader can learn more on machine internals by examining
-the simplified code excerpt in [Internals](internals.md).
 
 ```@example machines
 using MLJ; color_off() # hide
@@ -59,6 +57,7 @@ fit!(mach, rows=1:100);
 fit!(mach, rows=1:100);
 ```
 
+
 ## Inspecting machines
 
 There are two methods for inspecting the outcomes of training in
@@ -78,9 +77,53 @@ fitted_params(mach)
 report(mach)
 ```
 
+```@docs
+fitted_params
+report
+```
+
+
+## Constructing machines
+
+A machine is constructed with the syntax `machine(model, args...)`
+where the possibilities for `args` (called *training arguments*) are
+summarized in table below. Here `X` and `y` represent inputs and
+target, respectively, and `Xout` the output of a `transform` call.
+Machines for supervised models may have additional training arguments,
+such as a vector of per-observation weights (in which case
+`supports_weights(model) == true`).
+
+`model` supertype   | `machine` constructor calls | operation calls (first compulsory)
+--------------------|-----------------------------|--------------------------------------
+`Deterministic <: Supervised`    | `machine(model, X, y, extras...)` | `predict(mach, Xnew)`, `transform(mach, Xnew)`, `inverse_transform(mach, Xout)`
+`Probabilistic <: Supervised`    | `machine(model, X, y, extras...)` | `predict(mach, Xnew)`, `predict_mean(mach, Xnew)`, `predict_median(mach, Xnew)`, `predict_mode(mach, Xnew)`, `transform(mach, Xnew)`, `inverse_transform(mach, Xout)`
+`Unsupervised` (except `Static`) | `machine(model, X)` | `transform(mach, Xnew)`, `inverse_transform(mach, Xout)`, `predict(mach, Xnew)`
+`Static`                        | `machine(model)`    | `transform(mach, Xnews...)`, `inverse_transform(mach, Xout)`
+
+All operations on machines (`predict`, `transform`, etc) have exactly
+one argument (`Xnew` or `Xout` above) after `mach`, the machine
+instance. An exception is a machine bound to a `Static` model, which
+can have any number of arguments after `mach`. For more on `Static`
+transformers (which have no *training* arguments) see [Static
+transformers](@ref).
+
+A machine is reconstructed from a file using the syntax
+`machine("my_machine.jlso")`, or `machine("my_machine.jlso", args...)`
+if retraining using new data. See [Saving machines](@ref) below.
+
+### Constructing machines in learning networks
+
+Instead of data `X`, `y`, etc,  the `machine` constructor is provided
+`Node` or `Source` objects ("dynamic data") when building a learning
+network. See [Composing Models](composing_models.md) for more on this
+advanced feature. One also uses `machine` to wrap a machine
+around a whole learning network; see [Learning network
+machines](@ref).
+
+
 ## Saving machines
 
-To save a machine to file, use the [`MLJ.save`](@ref) command:
+To save a machine to file, use the `MLJ.save` command:
 
 ```julia
 tree = @load DecisionTreeClassifier
@@ -114,33 +157,34 @@ unsupervised cousins `transform` and `inverse_transform`, see
 [Getting Started](index.md).
 
 The fields of a `Machine` instance (which should not generally be
-accessed byt the user) are:
+accessed by the user) are:
 
 - `model` - the struct containing the hyperparameters to be used in
   calls to `fit!`
 
 - `fitresult` - the learned parameters in a raw form, initially undefined
 
-- `args` -  a tuple of the data (in the supervised learning example above, `args = (X, y)`)
+- `args` - a tuple of the data, each element wrapped in a source node;
+  see [Learning Networks](@ref) (in the supervised learning example
+  above, `args = (source(X), source(y))`)
 
 - `report` - outputs of training not encoded in `fitresult` (eg, feature rankings)
 
-- `previous_model` - a deep copy of the model used in the last call to `fit!`
+- `old_model` - a deep copy of the model used in the last call to `fit!`
 
-- `previous_rows` -  a copy of the row indices used in last call to `fit!`
+- `old_rows` -  a copy of the row indices used in last call to `fit!`
 
 - `cache`
 
-Instead of data `X` and `y`, the `machine` constructor can be provided
-`Node` or `Source` objects ("dynamic data") to obtain a
-`NodalMachine`, rather than a regular `Machine` object, which has the
-fields listed above and some others. See [Composing
-Models](composing_models.md) for more on this advanced feature.
+The interested reader can learn more on machine internals by examining
+the simplified code excerpt in [Internals](internals.md).
 
 
 ## API Reference
 
 ```@docs
+MLJBase.machine
 fit!
+fit_only!
 MLJBase.save
 ```

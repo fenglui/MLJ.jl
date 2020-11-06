@@ -5,9 +5,6 @@ module MLJ
 
 export MLJ_VERSION
 
-# utilities.jl:
-export @curve, @pcurve
-
 # ensembles.jl:
 export EnsembleModel
 
@@ -23,19 +20,23 @@ export pdf, mode, median, mean, shuffle!, categorical, shuffle,
 
 # re-exports from (MLJ)ScientificTypes via MLJBase
 export Scientific, Found, Unknown, Known, Finite, Infinite,
-       OrderedFactor, Multiclass, Count, Continuous, Textual,
-       Binary, ColorImage, GrayImage, Image, Table
+    OrderedFactor, Multiclass, Count, Continuous, Textual,
+    Binary, ColorImage, GrayImage, Image, Table
 export scitype, scitype_union, elscitype, nonmissing, trait
 export coerce, coerce!, autotype, schema, info
 
 # re-export from MLJBase:
-export nrows, nfeatures, color_off, color_on,
+export nrows, color_off, color_on,
     selectrows, selectcols, restrict, corestrict, complement,
-    SupervisedTask, UnsupervisedTask, MLJTask,
-    Deterministic, Probabilistic, Unsupervised, Supervised, Static,
-    DeterministicNetwork, ProbabilisticNetwork,
+    Deterministic, Probabilistic, JointProbabilistic, Unsupervised, Supervised, Static,
+    DeterministicNetwork, ProbabilisticNetwork, UnsupervisedNetwork,
+    ProbabilisticComposite, JointProbabilisticComposite, DeterministicComposite,
+    IntervalComposite, UnsupervisedComposite, StaticComposite,
+    ProbabilisticSurrogate, JointProbabilisticSurrogate, DeterministicSurrogate,
+    IntervalSurrogate, UnsupervisedSurrogate, StaticSurrogate,
+    Surrogate, Composite,
     target_scitype, input_scitype, output_scitype,
-    predict, predict_mean, predict_median, predict_mode,
+    predict, predict_mean, predict_median, predict_mode, predict_joint,
     transform, inverse_transform, evaluate, fitted_params, params,
     @constant, @more, HANDLE_GIVEN_ID, UnivariateFinite,
     classes, table, report, rebind!,
@@ -43,23 +44,25 @@ export nrows, nfeatures, color_off, color_on,
     default_measure, measures,
     @load_boston, @load_ames, @load_iris, @load_reduced_ames, @load_crabs,
     load_boston, load_ames, load_iris, load_reduced_ames, load_crabs,
-    Machine, NodalMachine, machine, AbstractNode,
+    Machine, machine, AbstractNode, @node,
     source, node, fit!, freeze!, thaw!, Node, sources, origins,
     machines, sources, anonymize!, @from_network, fitresults,
     @pipeline,
     ResamplingStrategy, Holdout, CV,
     StratifiedCV, evaluate!, Resampler, iterator,
     default_resource, pretty,
-    OpenML
+    OpenML,
+    make_blobs, make_moons, make_circles, make_regression,
+    fit_only!, return!, int, decoder
 
 export measures,
     orientation, reports_each_observation,
     is_feature_dependent, aggregation,
     aggregate,
     default_measure, value,
-    mav, mae, rms, rmsl, rmslp1, rmsp, l1, l2,
+    mav, mae, mape, rms, rmsl, rmslp1, rmsp, l1, l2,
     confusion_matrix, confmat,
-    cross_entropy, BrierScore,
+    cross_entropy, BrierScore, brier_score,
     misclassification_rate, mcr, accuracy,
     balanced_accuracy, bacc, bac,
     matthews_correlation, mcc,
@@ -80,7 +83,7 @@ export measures,
     tpr, tnr, fpr, fnr,
     falsediscovery_rate, false_discovery_rate, fdr, npv, ppv,
     recall, sensitivity, hit_rate, miss_rate,
-    specificity, selectivity, f1score, f1, fallout
+    specificity, selectivity, f1score, fallout
 
 # re-export from MLJTuning:
 export Grid, RandomSearch, Explicit, TunedModel,
@@ -89,10 +92,9 @@ export Grid, RandomSearch, Explicit, TunedModel,
 # re-export from MLJModels:
 export models, localmodels, @load, load, info,
     ConstantRegressor, ConstantClassifier,     # builtins/Constant.jl
-    StaticTransformer, FeatureSelector,        # builtins/Transformers.jl
-    UnivariateStandardizer, Standardizer,
-    UnivariateBoxCoxTransformer,
-    OneHotEncoder, UnivariateDiscretizer,
+    FeatureSelector, UnivariateStandardizer,   # builtins/Transformers.jl
+    Standardizer, UnivariateBoxCoxTransformer,
+    OneHotEncoder, ContinuousEncoder, UnivariateDiscretizer,
     FillImputer
 
 # re-export from ComputaionalResources:
@@ -130,21 +132,11 @@ import MLJScientificTypes
 ## CONSTANTS
 
 const srcdir = dirname(@__FILE__)
-const CategoricalElement = Union{CategoricalString,CategoricalValue}
-
-# FIXME replace with either Pkg.installed()["MLJ"] or uuid =
-# Pkg.project().dependencies["MLJ"] version =
-# Pkg.dependencies()[uuid].version --- this is currently messy because
-# it's been enacted then reverted see
-# https://github.com/JuliaLang/julia/pull/33410 and
-# https://github.com/JuliaLang/Pkg.jl/pull/1086/commits/996c6b9b69ef0c058e0105427983622b7cc8cb1d
-toml = Pkg.TOML.parsefile(joinpath(dirname(dirname(pathof(MLJ))),
-                                  "Project.toml"))
-const MLJ_VERSION = toml["version"]
 
 
 ## INCLUDE FILES
 
+include("version.jl")       # defines MLJ_VERSION constant
 include("ensembles.jl")     # homogeneous ensembles
 include("model_matching.jl")# inferring model search criterion from data
 include("scitypes.jl")      # extensions to ScientificTypes.scitype

@@ -94,6 +94,11 @@ Further to the last point, `a::Float64 = 0.5::(_ > 0)` indicates that
 the field `a` is a `Float64`, takes `0.5` as default value, and
 expects its value to be positive.
 
+Please see [this
+issue](https://github.com/alan-turing-institute/MLJBase.jl/issues/68)
+for a known issue and workaround relating to the use of `@mlj_model`
+with negative defaults.
+
 If you decide **not** to use the `@mlj_model` macro (e.g. in the case
 of a parametric type), you will need to write a keyword constructor
 and a `clean!` method:
@@ -120,7 +125,8 @@ end
 
 **Additional notes**:
 
-- Please annotate all fields with concrete types, if possible, using type parameters if necessary.
+- Please annotate all fields with concrete types, if possible, using
+  type parameters if necessary.
 
 - Please prefer `Symbol` over `String` if you can (e.g. to pass the name of a solver).
 
@@ -128,17 +134,25 @@ end
 
 - Your model may have 0 fields, that's fine.
 
+- Although not essential, try to avoid Union types for model
+  fields. For example, a field declaration `features::Vector{Symbol}`
+  with a default of `Symbol[]` (detected with the `isempty` method) is
+  preferred to `features::Union{Vector{Symbol}, Nothing}` with a default
+  of `nothing`.
+
+
 **Examples**:
 
 - [KNNClassifier](https://github.com/alan-turing-institute/MLJModels.jl/blob/3687491b132be8493b6f7a322aedf66008caaab1/src/NearestNeighbors.jl#L62-L69) which uses `@mlj_model`,
 - [XGBoostRegressor](https://github.com/alan-turing-institute/MLJModels.jl/blob/3687491b132be8493b6f7a322aedf66008caaab1/src/XGBoost.jl#L17-L161) which does not.
+
 
 ### Fit
 
 The implementation of `fit` will look like
 
 ```julia
-function MLJModelInterface.fit(m::YourModel, verbosity::Int, X, y, w=nothing)
+function MLJModelInterface.fit(m::YourModel, verbosity, X, y, w=nothing)
     # body ...
     return (fitresult, cache, report)
 end
@@ -177,9 +191,11 @@ feature rankings). See more on this below.
 
 #### Classifier
 
-For a classifier, the steps are fairly similar to a regressor with two particularities:
+For a classifier, the steps are fairly similar to a regressor with these differences:
 
-1. `y` will be a categorical vector and you will typically want to use the integer encoding of `y` instead of the raw labels; use `MLJModelInterface.int` for this,
+1. `y` will be a categorical vector and you will typically want to use
+   the integer encoding of `y` instead of `CategoricalValue`s; use
+   `MLJModelInterface.int` for this.
 1.  You will need to pass the full pool of target labels (not just
    those observed in the training data) and additionally, in the
    `Deterministic` case, the encoding, to make these available to
@@ -189,6 +205,15 @@ For a classifier, the steps are fairly similar to a regressor with two particula
    method for recovering categorical elements from their integer
    representations (e.g., `d(2)` is the categorical element with `2`
    as encoding).
+2. In the case of a *probabilistic* classifier you should pass all
+   probabilities simultaneously to the `UnivariateFinite` constructor
+   to get an abstract `UnivariateFinite` vector (type
+   `UnivariateFiniteArray`) rather than use comprehension or
+   broadcasting to get a vanilla vector. This is for performance
+   reasons.
+   
+If implementing a classifier, you should probably consult the more
+detailed instructions at [The predict method](@ref).
 
 **Examples**:
 

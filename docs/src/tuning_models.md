@@ -1,5 +1,10 @@
 # Tuning models
 
+Below we illustrate tuning model hyperparameters by grid and random
+searches. For a complete list of available and planned tuning
+strategies, see the [MLJTuning
+page](https://github.com/alan-turing-institute/MLJTuning.jl#what-is-provided-here)
+
 In MLJ tuning is implemented as a model wrapper. After wrapping a
 model in a tuning strategy and binding the wrapped model to data in a
 machine, `mach`, calling `fit!(mach)` instigates a search for optimal
@@ -8,11 +13,6 @@ uses all supplied data to train the best model. To predict using the
 optimal model, one just calls `predict(mach, Xnew)`. In this way the
 wrapped model may be viewed as a "self-tuning" version of the
 unwrapped model.
-
-Below we illustrate tuning by grid and random searches. For a complete
-list of available and planned tuning strategies, see the [MLJTuning
-page](https://github.com/alan-turing-institute/MLJTuning.jl#what-is-provided-here)
-
 
 ## Tuning a single hyperparameter using a grid search
 
@@ -107,7 +107,7 @@ self_tuning_forest_model = TunedModel(model=forest_model,
                                       range=[r1, r2],
                                       measure=rms);
 self_tuning_forest = machine(self_tuning_forest_model, X, y);
-fit!(self_tuning_forest)
+fit!(self_tuning_forest, verbosity=0)
 ```
 
 In this two-parameter case, a plot of the grid search results is also
@@ -136,7 +136,7 @@ self_tuning_forest_model = TunedModel(model=forest_model,
                                       range=[(r1, 3), r2],
                                       measure=rms,
                                       n=25);
-fit!(machine(self_tuning_forest_model, X, y), verbosity=1)
+fit!(machine(self_tuning_forest_model, X, y), verbosity=0)
 ```
 
 For more options for a grid search, see [`Grid`](@ref) below.
@@ -148,7 +148,8 @@ Let's attempt to tune the same hyperparameters using a `RandomSearch`
 tuning strategy. By default, bounded numeric ranges like `r1` and `r2`
 are sampled uniformly (before rounding, in the case of the integer
 range `r1`). Positive unbounded ranges are sampled using a Gamma
-distribution, and all others using a (truncated) normal distributions.
+distribution by default, and all others using a (truncated) normal
+distribution.
 
 ```@repl goof
 self_tuning_forest_model = TunedModel(model=forest_model,
@@ -158,7 +159,7 @@ self_tuning_forest_model = TunedModel(model=forest_model,
                                       measure=rms,
                                       n=25);
 self_tuning_forest = machine(self_tuning_forest_model, X, y);
-fit!(self_tuning_forest, verbosity=1)
+fit!(self_tuning_forest, verbosity=0)
 ```
 
 ```julia

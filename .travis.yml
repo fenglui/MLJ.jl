@@ -4,9 +4,7 @@ os:
   - linux
 julia:
   - 1.0
-  - 1.1
-  - 1.2
-  - 1.3
+  - 1.5
 notifications:
   email: false
 git:
@@ -26,7 +24,7 @@ matrix:
         - |
           julia --color=yes --project=docs/ -e'
             using Pkg
-            Pkg.add(PackageSpec(name="MLJBase", rev="master"));Pkg.add(PackageSpec(name="MLJTuning", rev="master"));Pkg.add(PackageSpec(name="MLJModels", rev="master"));Pkg.develop(PackageSpec(path=pwd()))
+            Pkg.develop(PackageSpec(path=pwd()))
             Pkg.instantiate()
             include("docs/make.jl")
           '  

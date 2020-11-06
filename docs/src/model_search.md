@@ -5,14 +5,18 @@ properties, without loading all the packages containing model code. In
 turn, this allows one to efficiently find all models solving a given
 machine learning task. The task itself is specified with the help of
 the `matching` method, and the search executed with the `models`
-methods, as detailed below.
+methods, as detailed below. 
+
+A table of all models is also given at [List of Supported
+Models](@ref).
+
 
 ## Model metadata
 
-*Terminology.* In this section the word "model" refers to the metadata
-entry in the registry of an actual model `struct`, as appearing
-elsewhere in the manual. One can obtain such an entry with the `info`
-command:
+*Terminology.* In this section the word "model" refers to a metadata
+entry in the model registry, as opposed to an actual model `struct`
+that such an entry represents. One can obtain such an entry with the
+`info` command:
 
 ```@setup tokai
 using MLJ
@@ -38,14 +42,20 @@ localmodels()
 localmodels()[2]
 ```
 
-If `models` is passed any `Bool`-valued function `test`, it returns every `model` for which `test(model)` is true, as in
+One can search for models containing specified strings or regular expressions in their `docstring` attributes, as in
+
+```@repl tokai 
+models("forest")
+```
+
+or by specifying a filter (`Bool`-valued function):
 
 ```@repl tokai
-test(model) = model.is_supervised &&
+filter(model) = model.is_supervised &&
                 model.input_scitype >: MLJ.Table(Continuous) &&
                 model.target_scitype >: AbstractVector{<:Multiclass{3}} &&
                 model.prediction_type == :deterministic
-models(test)
+models(filter)
 ```
 
 Multiple test arguments may be passed to `models`, which are applied
@@ -53,10 +63,6 @@ conjunctively.
 
 
 ## Matching models to data
-
-!!! note
-    The `matching` method described below is experimental and may
-    break in subsequent MLJ releases.
 
 Common searches are streamlined with the help of the `matching`
 command, defined as follows:
@@ -72,7 +78,7 @@ So, to search for all supervised probabilistic models handling input
 `X` and target `y`, one can define the testing function `task` by
 
 ```julia
-task(model) = matching(model, X, y) && model.is_probabilistic
+task(model) = matching(model, X, y) && model.prediction_type == :probabilistic
 ```
 
 And execute the search with
@@ -106,5 +112,4 @@ end
 ```@docs
 models
 localmodels
-matching
 ```

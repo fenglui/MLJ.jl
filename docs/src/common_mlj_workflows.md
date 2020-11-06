@@ -4,8 +4,8 @@
 
 ```@example workflows
 using MLJ; color_off() #hide
-using RDatasets
-channing = dataset("boot", "channing")
+import RDatasets
+channing = RDatasets.dataset("boot", "channing")
 first(channing, 4)
 ```
 
@@ -44,7 +44,7 @@ selectrows(X, 1:4) # selectrows works for any Tables.jl table
 y[1:4]
 ```
 
-## Model search (**experimental**)
+## Model search
 
 *Reference:*   [Model Search](model_search.md)
 
@@ -116,8 +116,8 @@ evaluate(model, X, y, resampling=CV(nfolds=5), measure=[rms, mav])
 [Evaluating Model Performance](evaluating_model_performance.md), [Performance Measures](performance_measures.md)
 
 ```@example workflows
-using RDatasets
-vaso = dataset("robustbase", "vaso"); # a DataFrame
+import RDatasets
+vaso = RDatasets.dataset("robustbase", "vaso"); # a DataFrame
 first(vaso, 3)
 ```
 
@@ -145,7 +145,7 @@ Fit on train and evaluate on test:
 
 ```@example workflows
 fit!(tree, rows=train)
-yhat = predict(tree, rows=test);
+yhat = predict(tree, X[test,:])
 mean(cross_entropy(yhat, y[test]))
 ```
 
@@ -371,36 +371,44 @@ predict(tuned, Xnew)
 
 *Reference:*   [Composing Models](composing_models.md)
 
-Constructing a linear (unbranching) pipeline with a learned target
+Constructing a linear (unbranching) pipeline with a *learned* target
 transformation/inverse transformation:
 
 ```@example workflows
 X, y = @load_reduced_ames
 @load KNNRegressor
-pipe = @pipeline MyPipe(X -> coerce(X, :age=>Continuous),
-                               hot = OneHotEncoder(),
-                               knn = KNNRegressor(K=3),
-                               target = UnivariateStandardizer())
+pipe = @pipeline(X -> coerce(X, :age=>Continuous),
+                 OneHotEncoder,
+                 KNNRegressor(K=3),
+                 target = UnivariateStandardizer)
 ```
 
 Evaluating the pipeline (just as you would any other model):
 
 ```@example workflows
-pipe.knn.K = 2
-pipe.hot.drop_last = true
+pipe.knn_regressor.K = 2
+pipe.one_hot_encoder.drop_last = true
 evaluate(pipe, X, y, resampling=Holdout(), measure=rms, verbosity=2)
 ```
 
-Constructing a linear (unbranching) pipeline with a static (unlearned)
+Inspecting the learned parameters in a pipeline:
+
+```@example workflows
+mach = machine(pipe, X, y) |> fit!
+F = fitted_params(mach)
+F.one_hot_encoder
+```
+
+Constructing a linear (unbranching) pipeline with a *static* (unlearned)
 target transformation/inverse transformation:
 
 ```@example workflows
 @load DecisionTreeRegressor
-pipe2 = @pipeline MyPipe2(X -> coerce(X, :age=>Continuous),
-                               hot = OneHotEncoder(),
-                               tree = DecisionTreeRegressor(max_depth=4),
-                               target = y -> log.(y),
-                               inverse = z -> exp.(z))
+pipe2 = @pipeline(X -> coerce(X, :age=>Continuous),
+                  OneHotEncoder,
+                  DecisionTreeRegressor(max_depth=4),
+                  target = y -> log.(y),
+                  inverse = z -> exp.(z))
 ```
 
 ## Creating a homogeneous ensemble of models

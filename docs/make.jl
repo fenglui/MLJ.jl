@@ -10,6 +10,7 @@ import MLJTuning
 import MLJModels
 import MLJScientificTypes
 import MLJModelInterface
+import ScientificTypes
 import Distributions
 using CategoricalArrays # avoid types like CategoricalArrays.Categorica
 using LossFunctions
@@ -21,30 +22,33 @@ const MMI = MLJModelInterface
 #                   codefence = "```@example workflows" => "```")
 
 pages = [
-    "Getting Started" => "index.md",
+    "Introduction" => "index.md",
+    "Getting Started" => "getting_started.md",
     "Common MLJ Workflows" => "common_mlj_workflows.md",
+    "Working with Categorical Data" => "working_with_categorical_data.md",
     "Model Search" => "model_search.md",
     "Machines" => "machines.md",
     "Evaluating Model Performance" => "evaluating_model_performance.md",
     "Performance Measures" => "performance_measures.md",
     "Tuning Models" => "tuning_models.md",
     "Learning Curves" => "learning_curves.md",
-    "Built-in Transformers" => "built_in_transformers.md",
+    "Transformers and other unsupervised models" => "transformers.md",
     "Composing Models" => "composing_models.md",
     "Homogeneous Ensembles" => "homogeneous_ensembles.md",
+    "Generating Synthetic Data" => "generating_synthetic_data.md",
     "OpenML Integration" => "openml_integration.md",
     "Simple User Defined Models" => "simple_user_defined_models.md",
     "Quick-Start Guide to Adding Models" => "quick_start_guide_to_adding_models.md",
     "Adding Models for General Use" => "adding_models_for_general_use.md",
     "Benchmarking" => "benchmarking.md",
     "Internals" => "internals.md",
+    "List of Supported Models" => "list_of_supported_models.md",
     "Glossary" => "glossary.md",
-    # "API" => "api.md", # NOTE: commented as currently empty
     "MLJ Cheatsheet" => "mlj_cheatsheet.md",
-    "MLJ News" => "NEWS.md",
     "FAQ" => "frequently_asked_questions.md",
     "Julia BlogPost" => "julia_blogpost.md",
-    "Acceleration and Parallelism" => "acceleration_and_parallelism.md"
+    "Acceleration and Parallelism" => "acceleration_and_parallelism.md",
+    "Index of Methods" => "api.md",
     ]
 
 for (k, v) in pages
@@ -54,7 +58,7 @@ end
 makedocs(
     sitename = "MLJ",
     format   = Documenter.HTML(),
-    modules  = [MLJ, MLJBase, MLJTuning, MLJModels, MLJScientificTypes, MLJModelInterface],
+    modules  = [MLJ, MLJBase, MLJTuning, MLJModels, MLJScientificTypes, MLJModelInterface, ScientificTypes],
     pages    = pages)
 
 # By default Documenter does not deploy docs just for PR

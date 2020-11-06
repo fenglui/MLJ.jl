@@ -1,9 +1,5 @@
-# API
+# Index of Methods
 
-## Functions
+```@index
+```
 
-TODO
-
-## Index
-
-TODO
